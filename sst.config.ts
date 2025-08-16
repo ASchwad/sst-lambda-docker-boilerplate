@@ -98,6 +98,18 @@ export default $config({
       runtime: "python3.11",
       link: [linkableValue],
       url: true,
+      permissions: [
+        {
+          actions: ["bedrock:InvokeModel"],
+          resources: [
+            "arn:aws:bedrock:eu-central-1:037708943013:inference-profile/eu.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            "arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0",
+            "arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0",
+            "arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0",
+            "arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0"
+          ]
+        }
+      ]
     });
 
     return {

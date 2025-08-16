@@ -76,16 +76,27 @@ sst deploy --target PythonFnCustom
 
 The function uses:
 
-- **Model**: OpenAI GPT-3.5-turbo
+- **Model**: AWS Bedrock with Claude 3.7 Sonnet
 - **Tools**: Secure calculator with input validation
 - **Security**: Mathematical expression validation to prevent code injection
 - **Dependencies**: Managed via requirements.txt and installed in the container
+
+### ⚠️ AWS Bedrock Model Access Required
+
+Before deploying, ensure you have requested access to Claude 3.7 Sonnet in AWS Bedrock:
+
+1. Go to [AWS Bedrock Console → Model Access](https://console.aws.amazon.com/bedrock/home?region=eu-central-1#/modelaccess)
+2. Find "Anthropic Claude 3.7 Sonnet" in the available models
+3. Click "Request model access" if not already enabled
+4. Wait for approval (usually instant for Anthropic models)
+
+**Note**: The function uses inference profiles which require permissions for both the inference profile AND all underlying foundation models across regions. This is automatically configured in the SST config.
 
 ## 📚 Dependencies
 
 - `pydantic-ai`: AI agent framework
 - `pydantic`: Data validation
-- `openai`: OpenAI API integration
+- `boto3`: AWS SDK for Bedrock integration
 
 ## 🔒 Security Features
 
@@ -160,10 +171,12 @@ sst logs PythonFn
 
 ## 📝 Notes
 
-- The agent requires an OpenAI API key to be configured in your environment
+- The agent uses AWS Bedrock (no API keys needed - uses IAM permissions)
+- Requires AWS Bedrock model access to be enabled in the console
 - The calculator tool only supports basic mathematical operations for security
 - All responses are returned as JSON with proper HTTP headers
 - Dependencies are managed via `requirements.txt` and installed in the container
 - SST workspace management requires `pyproject.toml` even when using `requirements.txt`
+- Uses Claude 3.7 Sonnet via EU inference profiles for cross-region reliability
 
 For more details, see the individual README files in each workspace directory.

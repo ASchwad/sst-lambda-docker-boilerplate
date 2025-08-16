@@ -1,11 +1,8 @@
 import json
-import os
+import boto3
 from typing import Any, Dict
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
-
-# Set the OpenAI API key
-os.environ["OPENAI_API_KEY"] = ""
 
 
 class CalculatorInput(BaseModel):
@@ -39,9 +36,9 @@ def calculator_tool(expression: str) -> CalculatorOutput:
 def create_agent():
     """Create the agent with the calculator tool."""
     try:
-        # Create a simple agent with the correct API
+        # Create a simple agent with AWS Bedrock
         agent = Agent(
-            'openai:gpt-3.5-turbo',
+            'bedrock:eu.anthropic.claude-3-7-sonnet-20250219-v1:0',
             system_prompt='You are a helpful calculator agent. When asked to calculate something, use the calculator tool to evaluate mathematical expressions safely.'
         )
         
