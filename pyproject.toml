@@ -1,9 +1,12 @@
 [project]
-name = "aws-python-container"
+name = "sst-lambda-websocket"
 version = "0.1.0"
-description = "A SST app"
-authors = [{ name = "Nick Wall", email = "mail@walln.dev" }]
-dependencies = []
+description = "A SST app for a Lambda WebSocket"
+authors = []
+dependencies = [
+    "dotenv>=0.9.9",
+    "websockets>=15.0.1",
+]
 
 # It is recommended to specify your python version to match your Lambda runtime otherwise you may
 # encounter issues with dependencies.

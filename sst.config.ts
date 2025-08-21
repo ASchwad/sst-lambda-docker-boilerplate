@@ -84,48 +84,8 @@ export default $config({
     };
   },
   async run() {
-    // DynamoDB table for WebSocket connections
-    const connectionsTable = new sst.aws.Dynamo("WebSocketConnections", {
-      fields: {
-        connectionId: "string",
-      },
-      primaryIndex: { hashKey: "connectionId" },
-    });
-
     // Create WebSocket API
     const webSocketApi = new sst.aws.ApiGatewayWebSocket("WebSocketApi");
-
-    // OnConnect Lambda function
-    const onConnectFunction = new sst.aws.Function("OnConnectFunction", {
-      python: {
-        container: true,
-      },
-      handler: "./functions/src/functions/onConnect.handler",
-      runtime: "python3.11",
-      link: [connectionsTable],
-      permissions: [
-        {
-          actions: ["dynamodb:PutItem"],
-          resources: [connectionsTable.arn],
-        },
-      ],
-    });
-
-    // OnDisconnect Lambda function
-    const onDisconnectFunction = new sst.aws.Function("OnDisconnectFunction", {
-      python: {
-        container: true,
-      },
-      handler: "./functions/src/functions/onDisconnect.handler",
-      runtime: "python3.11",
-      link: [connectionsTable],
-      permissions: [
-        {
-          actions: ["dynamodb:DeleteItem"],
-          resources: [connectionsTable.arn],
-        },
-      ],
-    });
 
     // InvokeModel Lambda function (main streaming function)
     const invokeModelFunction = new sst.aws.Function("InvokeModelFunction", {
@@ -135,34 +95,6 @@ export default $config({
       handler: "./functions/src/functions/invokeModel.handler",
       runtime: "python3.11",
       timeout: "5 minutes",
-      link: [connectionsTable],
-      permissions: [
-        {
-          actions: ["dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:GetItem"],
-          resources: [connectionsTable.arn],
-        },
-        {
-          actions: ["execute-api:ManageConnections"],
-          resources: ["*"],
-        },
-        {
-          actions: ["bedrock:InvokeModelWithResponseStream"],
-          resources: [
-            "arn:aws:bedrock:*::foundation-model/*",
-            "arn:aws:bedrock:*:*:inference-profile/*"
-          ]
-        }
-      ]
-    });
-
-    // ChatAgent Lambda function (simplified resilient streaming)
-    const chatAgentFunction = new sst.aws.Function("ChatAgentFunction", {
-      python: {
-        container: true,
-      },
-      handler: "./functions/src/functions/chatAgent.handler",
-      runtime: "python3.11",
-      timeout: "5 minutes",
       permissions: [
         {
           actions: ["execute-api:ManageConnections"],
@@ -178,15 +110,11 @@ export default $config({
       ]
     });
 
-    // Add routes to WebSocket API
-    webSocketApi.route("$connect", onConnectFunction.arn);
-    webSocketApi.route("$disconnect", onDisconnectFunction.arn);
+    // Add only the invokeModel route to WebSocket API
     webSocketApi.route("invokeModel", invokeModelFunction.arn);
-    webSocketApi.route("chatMessage", chatAgentFunction.arn);
 
     return {
       websocketUrl: webSocketApi.url,
-      connectionsTable: connectionsTable.name,
     };
   },
 });

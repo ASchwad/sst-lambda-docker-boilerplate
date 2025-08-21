@@ -1,64 +1,84 @@
-# ❍ AWS Python Container with PydanticAI
+# ❍ AWS Lambda Docker Boilerplate with WebSocket Streaming
 
-Deploy Python applications using SST with advanced AI capabilities powered by PydanticAI.
+Deploy Python Lambda functions using SST with WebSocket streaming for AWS Bedrock models.
 
-This project demonstrates how to deploy Python Lambda functions using SST's container mode, with a focus on AI-powered applications using PydanticAI for natural language processing and tool execution.
+This project demonstrates how to deploy Python Lambda functions using SST's container mode, with a focus on streaming responses from AWS Bedrock models via WebSocket connections.
 
 ## 🚀 Features
 
-- **PydanticAI Integration**: Advanced AI agent framework with natural language understanding
-- **Calculator Tool**: Secure mathematical expression evaluation
+- **WebSocket Streaming**: Real-time streaming of AI model responses
+- **AWS Bedrock Integration**: Support for multiple Bedrock models (Claude, Titan, Nova, etc.)
 - **Container Deployment**: Uses Docker containers for Lambda deployment
 - **SST Framework**: Modern serverless deployment with SST
 - **Python 3.11**: Optimized for AWS Lambda runtime
+- **Simplified Architecture**: Single endpoint without DynamoDB dependencies
 
 ## 🏗️ Architecture
 
-The project consists of two main components:
+The project consists of a simplified WebSocket architecture:
 
-1. **`functions/`**: Main Lambda function with PydanticAI agent and calculator tool
-2. **`custom_dockerfile/`**: Example of custom Dockerfile deployment
+1. **WebSocket API Gateway**: Handles WebSocket connections
+2. **Lambda Function**: Single `invokeModel` endpoint for streaming Bedrock responses
 
 ## 📁 Project Structure
 
 ```
 .
-├── functions/                    # Main Lambda function workspace
-│   ├── pyproject.toml          # Python dependencies (pydantic-ai, openai)
+├── functions/                    # Lambda function workspace
+│   ├── pyproject.toml          # Python dependencies
 │   ├── Dockerfile              # Custom container configuration
-│   ├── src/functions/api.py    # PydanticAI agent implementation
+│   ├── src/functions/
+│   │   ├── invokeModel.py      # Main streaming function
+│   │   ├── api.py              # Additional API functionality
+│   │   └── sst.py              # SST utilities
 │   └── requirements.txt        # Runtime dependencies for container
-├── core/                        # Shared core functionality
-├── custom_dockerfile/           # Custom Dockerfile example
 ├── sst.config.ts               # SST deployment configuration
+├── test_websocket_client.py    # WebSocket testing client
 └── pyproject.toml              # Root workspace configuration
 ```
 
-## 🎯 PydanticAI Agent
+## 🎯 WebSocket Streaming
 
-The main function implements a PydanticAI agent that can:
+The WebSocket endpoint supports streaming responses from AWS Bedrock models with:
 
-- Understand natural language queries
-- Execute mathematical calculations securely
-- Provide intelligent responses using OpenAI's GPT models
-- Handle complex tool interactions
+- Real-time token streaming from various model providers
+- Support for Claude, Titan, Nova, Llama, and other Bedrock models
+- Automatic response format handling per model provider
+- Error handling and connection management
 
 ### Example Usage
 
-```bash
-curl -X POST "https://your-function-url.lambda-url.region.on.aws/" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is 2 + 2?"}'
-```
+Connect to the WebSocket and send a message to the `invokeModel` route:
 
-**Response:**
+```python
+import asyncio
+import websockets
+import json
 
-```json
-{
-  "query": "What is 2 + 2?",
-  "response": "The sum of 2 + 2 is 4.",
-  "message": "PydanticAI Calculator Agent is working!"
-}
+async def test_streaming():
+    uri = "wss://your-api-id.execute-api.region.amazonaws.com/$default"
+    
+    async with websockets.connect(uri) as websocket:
+        message = {
+            "action": "invokeModel",
+            "prompt": "Tell me a short joke",
+            "parameters": {
+                "modelId": "amazon.titan-text-express-v1",
+                "maxTokens": 100,
+                "temperature": 0.7
+            }
+        }
+        
+        await websocket.send(json.dumps(message))
+        
+        # Listen for streaming tokens
+        while True:
+            response = await websocket.recv()
+            print(response, end="")
+            if "<End of LLM response>" in response:
+                break
+
+asyncio.run(test_streaming())
 ```
 
 ## 🚀 Deployment
@@ -81,16 +101,27 @@ The function uses:
 - **Security**: Mathematical expression validation to prevent code injection
 - **Dependencies**: Managed via requirements.txt and installed in the container
 
-### ⚠️ AWS Bedrock Model Access Required
+### ⚠️ AWS Bedrock Model Access & Streaming Requirements
 
-Before deploying, ensure you have requested access to Claude 3.7 Sonnet in AWS Bedrock:
+Before deploying, ensure you have the following:
 
-1. Go to [AWS Bedrock Console → Model Access](https://console.aws.amazon.com/bedrock/home?region=eu-central-1#/modelaccess)
-2. Find "Anthropic Claude 3.7 Sonnet" in the available models
-3. Click "Request model access" if not already enabled
-4. Wait for approval (usually instant for Anthropic models)
+1. **Model Access**: Request access to Bedrock models in AWS Bedrock Console:
+   - Go to [AWS Bedrock Console → Model Access](https://console.aws.amazon.com/bedrock/home?region=eu-central-1#/modelaccess)
+   - Enable access for models you want to use (Claude, Titan, Nova, etc.)
+   - Wait for approval (usually instant for most models)
 
-**Note**: The function uses inference profiles which require permissions for both the inference profile AND all underlying foundation models across regions. This is automatically configured in the SST config.
+2. **Streaming-Capable Models**: Only use models that support streaming responses:
+   - ✅ **Amazon Titan**: `amazon.titan-text-express-v1`, `amazon.titan-text-lite-v1`
+   - ✅ **Amazon Nova**: `amazon.nova-pro-v1:0`, `amazon.nova-lite-v1:0`
+   - ✅ **Anthropic Claude**: All Claude models support streaming
+   - ✅ **Meta Llama**: `meta.llama3-2-3b-instruct-v1:0`, etc.
+   - ✅ **Mistral**: `mistral.pixtral-large-2502-v1:0`
+
+3. **Inference Profiles** (Recommended): For better availability across regions:
+   - Example: `arn:aws:bedrock:eu-central-1:ACCOUNT:inference-profile/eu.anthropic.claude-3-7-sonnet-20250219-v1:0`
+   - Requires permissions for both the inference profile AND underlying foundation models
+
+**Note**: If you use a model that doesn't support streaming, the function will fail with a Bedrock API error. Always verify streaming support before deployment.
 
 ## 📚 Dependencies
 

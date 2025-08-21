@@ -5,10 +5,15 @@ import websockets
 import json
 import sys
 import argparse
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 async def test_websocket_route(route_name="invokeModel"):
     # WebSocket URL from the deployment
-    uri = "wss://warcyz88jg.execute-api.eu-central-1.amazonaws.com/$default"
+    uri = os.getenv("WEBSOCKET_URL")
     
     try:
         print(f"🚀 Testing WebSocket route: {route_name}")
@@ -22,7 +27,7 @@ async def test_websocket_route(route_name="invokeModel"):
                 "action": route_name,
                 "prompt": "Hello! Can you tell me a short joke?",
                 "parameters": {
-                    "modelId": "arn:aws:bedrock:eu-central-1:037708943013:inference-profile/eu.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                    "modelId": os.getenv("TEST_MODEL_ID"),
                     "maxTokens": 100,
                     "temperature": 0.7
                 }
@@ -60,47 +65,33 @@ async def test_websocket_route(route_name="invokeModel"):
         
     return True
 
-async def test_both_routes():
-    """Test both routes side by side"""
+async def test_invoke_model_route():
+    """Test the invokeModel route"""
     print("=" * 60)
-    print("🔄 COMPARISON TEST: Testing both implementations")
+    print("🔄 TESTING: invokeModel route only")
     print("=" * 60)
     
-    routes = ["invokeModel", "chatMessage"]
-    results = {}
-    
-    for route in routes:
-        print(f"\n{'='*20} Testing {route} {'='*20}")
-        results[route] = await test_websocket_route(route)
-        print(f"{'='*50}")
-        
-        if route != routes[-1]:  # Not the last route
-            print("⏸️  Waiting 2 seconds before next test...")
-            await asyncio.sleep(2)
+    result = await test_websocket_route("invokeModel")
     
     print(f"\n{'='*20} RESULTS SUMMARY {'='*20}")
-    for route, success in results.items():
-        status = "✅ SUCCESS" if success else "❌ FAILED"
-        print(f"  {route:15} : {status}")
+    status = "✅ SUCCESS" if result else "❌ FAILED"
+    print(f"  invokeModel     : {status}")
     
     print(f"{'='*60}")
-    return all(results.values())
+    return result
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Test WebSocket implementations")
-    parser.add_argument("--route", choices=["invokeModel", "chatMessage", "both"], 
-                       default="both", help="Route to test")
+    parser = argparse.ArgumentParser(description="Test WebSocket invokeModel route")
+    parser.add_argument("--route", choices=["invokeModel"], 
+                       default="invokeModel", help="Route to test (only invokeModel available)")
     
     args = parser.parse_args()
     
-    if args.route == "both":
-        success = asyncio.run(test_both_routes())
-    else:
-        success = asyncio.run(test_websocket_route(args.route))
+    success = asyncio.run(test_invoke_model_route())
     
     if success:
-        print("✅ All tests completed successfully!")
+        print("✅ Test completed successfully!")
         sys.exit(0)
     else:
-        print("❌ Some tests failed!")
+        print("❌ Test failed!")
         sys.exit(1)

@@ -3,7 +3,6 @@ import json
 import os
 import logging
 from botocore.exceptions import ClientError
-from .supported_model_list import MODELS_WITH_STREAMING_SUPPORT
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -11,19 +10,12 @@ logger.setLevel(logging.INFO)
 # Defaults
 DEFAULT_MODEL_ID = os.environ.get("DEFAULT_MODEL_ID","anthropic.claude-instant-v1")
 AWS_REGION = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
-try:
-    from sst import Resource
-    TABLE_NAME = Resource.WebSocketConnections.name
-except ImportError:
-    # Fallback for when sst package is not available
-    TABLE_NAME = os.environ.get("SST_Resource_WebSocketConnections_name") or "aws-python-websocket-dev-WebSocketConnectionsTable-cbxsdzzm"
 DEFAULT_MAX_TOKENS = 256
 DEFAULT_TEMPERATURE = 0
 
 # global variables - avoid creating a new client for every request
 bedrock_client = None
 apigw_client = None
-table = None
 
 
 def construct_request_body(modelId, parameters, prompt):
@@ -155,7 +147,7 @@ def get_generated_text(modelId, response):
     return generated_text if generated_text is not None else ""
 
 
-def post_to_websockets(apig_management_client, connection_id, message, table):
+def post_to_websockets(apig_management_client, connection_id, message):
     try:
         apig_management_client.post_to_connection(
             Data=message, ConnectionId=connection_id
@@ -163,29 +155,19 @@ def post_to_websockets(apig_management_client, connection_id, message, table):
     except ClientError:
         logger.exception("Couldn't post to connection %s.", connection_id)
     except apig_management_client.exceptions.GoneException:
-        logger.info("Connection %s is gone, removing.", connection_id)
-        try:
-            table.delete_item(Key={"connectionId": connection_id})
-        except ClientError:
-            logger.exception("Couldn't remove connection %s.", connection_id)
+        logger.info("Connection %s is gone.", connection_id)
 
 
-def call_llm(table, connection_id, apig_management_client, parameters, prompt):
+def call_llm(connection_id, apig_management_client, parameters, prompt):
     global bedrock_client
 
     status_code = 200
-    # check if model supports streaming response
     modelId = parameters.pop("modelId", DEFAULT_MODEL_ID)
-    if modelId not in MODELS_WITH_STREAMING_SUPPORT:
-        error_msg = f"Specified model does not support streaming response: {modelId}. Please try another model."
-        post_to_websockets(apig_management_client, connection_id, error_msg, table)
-        status_code = 400
-        return status_code
 
     body = construct_request_body(modelId, parameters, prompt)
     if body == None:
         error_msg = "Unsupported provider: " + modelId.split(".")[0]
-        post_to_websockets(apig_management_client, connection_id, error_msg, table)
+        post_to_websockets(apig_management_client, connection_id, error_msg)
         status_code = 400
         return status_code
     logger.info(f"ModelId {modelId}, Body: {body}")
@@ -216,41 +198,38 @@ def call_llm(table, connection_id, apig_management_client, parameters, prompt):
 
                     if generated_text == None:
                         error_msg = "Unsupported provider: " + modelId.split(".")[0]
-                        post_to_websockets(apig_management_client, connection_id, error_msg, table)
+                        post_to_websockets(apig_management_client, connection_id, error_msg)
                         status_code = 400
                         return status_code
 
                     # Only send non-empty text to WebSockets
                     if generated_text:
-                        post_to_websockets(apig_management_client, connection_id, generated_text, table)
+                        post_to_websockets(apig_management_client, connection_id, generated_text)
                 except Exception as e:
                     logger.error(f"Error processing chunk: {str(e)}, chunk: {chunk}")
                     error_msg = f"Error processing response: {str(e)}"
-                    post_to_websockets(apig_management_client, connection_id, error_msg, table)
+                    post_to_websockets(apig_management_client, connection_id, error_msg)
                     status_code = 500
                     return status_code
 
         # send a message to indicate end of LLM response
         end_msg = "<End of LLM response>"
-        post_to_websockets(apig_management_client, connection_id, end_msg, table)
+        post_to_websockets(apig_management_client, connection_id, end_msg)
                 
     return status_code
 
 
 def handler(event, context):
     global apigw_client
-    global table
 
     print("Event: ", json.dumps(event))
 
     # handle websockets request
     route_key = event.get("requestContext", {}).get("routeKey")
     connection_id = event.get("requestContext", {}).get("connectionId")
-    if TABLE_NAME is None or route_key is None or connection_id is None:
+    if route_key is None or connection_id is None:
         return {"statusCode": 400}
-    if table is None:
-        table = boto3.resource("dynamodb").Table(TABLE_NAME)
-    logger.info("Request: %s, use table %s.", route_key, table.name)
+    logger.info("Request: %s", route_key)
 
     # set default status code
     response = {"statusCode": 200}
@@ -273,6 +252,6 @@ def handler(event, context):
     else:
         if apigw_client is None:
             apigw_client = boto3.client("apigatewaymanagementapi", endpoint_url=f"https://{domain}/{stage}")
-        response["statusCode"] = call_llm(table, connection_id, apigw_client, parameters, prompt)
+        response["statusCode"] = call_llm(connection_id, apigw_client, parameters, prompt)
 
     return response

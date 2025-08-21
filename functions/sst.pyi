@@ -6,23 +6,11 @@ class Resource:
     class App:
         name: str
         stage: str
-    class ChatAgentFunction:
-        name: str
-        type: str
     class InvokeModelFunction:
-        name: str
-        type: str
-    class OnConnectFunction:
-        name: str
-        type: str
-    class OnDisconnectFunction:
         name: str
         type: str
     class WebSocketApi:
         managementEndpoint: str
         type: str
         url: str
-    class WebSocketConnections:
-        name: str
-        type: str
 
